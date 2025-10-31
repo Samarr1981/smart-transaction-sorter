@@ -1,36 +1,100 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Smart Transaction Sorter 💰
 
-## Getting Started
+AI-powered web application that analyzes bank transaction data, automatically categorizes expenses, and provides spending insights through an interactive dashboard.
 
-First, run the development server:
+## 🚀 Live Demo
 
+**[View Live Application](https://smart-transaction-sorter.vercel.app)**
+
+## ✨ Features
+
+- 🔐 Secure user authentication with JWT
+- 📊 CSV file upload and processing
+- 🤖 AI-powered transaction categorization using OpenAI GPT
+- ⚠️ Anomaly detection for unusual spending patterns
+- 📈 Interactive analytics dashboard with visualizations
+- 💡 AI insights assistant for spending recommendations
+- 📥 Export analyzed data
+
+## 🛠️ Tech Stack
+
+- **Frontend:** Next.js, React, TypeScript, Tailwind CSS
+- **Backend:** Next.js API Routes, Node.js
+- **Database:** MongoDB
+- **AI:** OpenAI GPT-4 API
+- **Authentication:** JWT
+- **Deployment:** Vercel
+
+## 📸 Screenshots
+
+### Login Page
+![Login](screenshots/1-login.png)
+
+### CSV Upload & Processing
+![Upload](screenshots/2-upload.png)
+
+### Transactions Dashboard
+![Transactions](screenshots/3-transactions.png)
+
+### Analytics & Visualizations
+![Analytics](screenshots/4-analytics.png)
+
+### AI Insights Assistant
+![Insights](screenshots/5-insights.png)
+
+## 🎯 Key Highlights
+
+- Processes CSV files with intelligent header detection
+- Real-time AI categorization of transactions
+- Visual spending breakdown by category
+- Daily income/expense tracking with charts
+- Anomaly detection for suspicious transactions
+- Natural language insights powered by GPT
+
+## ⚙️ Setup Instructions
+
+1. Clone the repository
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+git clone https://github.com/Samarr1981/smart-transaction-sorter.git
+cd smart-transaction-sorter
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+2. Install dependencies
+```bash
+npm install
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+3. Set up environment variables
+```bash
+MONGODB_URI=your_mongodb_connection_string
+JWT_SECRET=your_jwt_secret
+OPENAI_API_KEY=your_openai_api_key
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+4. Run the development server
+```bash
+npm run dev
+```
 
-## Learn More
+5. Open [http://localhost:3000](http://localhost:3000)
 
-To learn more about Next.js, take a look at the following resources:
+## 🔮 Future Enhancements
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- Excel file support (.xlsx)
+- Enhanced recurring transaction detection
+- Multi-currency support
+- Budget tracking and alerts
+- Mobile app version
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## 📝 Known Limitations
 
-## Deploy on Vercel
+- AI categorization accuracy varies based on transaction description clarity
+- Anomaly detection threshold being refined based on user spending patterns
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+---
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+**Built with ❤️ as a capstone project demonstrating full-stack development with modern AI integration**
+
+**Demo Credentials:**
+- Email: test@example.com
+- Password: Test123
