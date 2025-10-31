@@ -28,19 +28,19 @@ AI-powered web application that analyzes bank transaction data, automatically ca
 ## 📸 Screenshots
 
 ### Login Page
-![Login](screenshots/1-login.png)
+![Login](screenshots/1-Login.png)
 
 ### CSV Upload & Processing
-![Upload](screenshots/2-upload.png)
+![Upload](screenshots/2-Upload.png)
 
 ### Transactions Dashboard
-![Transactions](screenshots/3-transactions.png)
+![Transactions](screenshots/3-Transactions.png)
 
 ### Analytics & Visualizations
-![Analytics](screenshots/4-analytics.png)
+![Analytics](screenshots/4-Analytics.png)
 
 ### AI Insights Assistant
-![Insights](screenshots/5-insights.png)
+![Insights](screenshots/5-Insights.png)
 
 ## 🎯 Key Highlights
 
