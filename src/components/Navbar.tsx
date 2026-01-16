@@ -18,21 +18,29 @@ export default async function Navbar() {
   }
 
   return (
-    <nav className="bg-white shadow px-6 py-4 flex justify-between items-center">
-      <Link href="/" className="text-xl font-bold text-blue-700">
-        💸 Smart Transaction Sorter
-      </Link>
-      <div>
-        {isAuthenticated ? (
-          <LogoutButton />
-        ) : (
-          <Link
-            href="/login"
-            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition"
-          >
-            Login
-          </Link>
-        )}
+    <nav className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-50">
+      <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
+        <Link href="/" className="flex items-center gap-3 hover:opacity-80 transition">
+          <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
+            <span className="text-white font-bold text-xl">F</span>
+          </div>
+          <span className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+            Finflow
+          </span>
+        </Link>
+        
+        <div>
+          {isAuthenticated ? (
+            <LogoutButton />
+          ) : (
+            <Link
+              href="/login"
+              className="bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold px-6 py-2.5 rounded-lg shadow-md hover:shadow-lg transform hover:-translate-y-0.5 transition-all"
+            >
+              Sign In
+            </Link>
+          )}
+        </div>
       </div>
     </nav>
   );

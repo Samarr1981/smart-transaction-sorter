@@ -2,46 +2,129 @@
 
 import { useState, useEffect, useMemo } from "react";
 import Papa from "papaparse";
-import { ArrowUpCircle, ArrowDownCircle } from "lucide-react";
+import * as XLSX from 'xlsx';
 import InsightsAssistant from "@/components/InsightsAssistant";
-import {
-  PieChart,
-  Pie,
-  Cell,
-  Tooltip,
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Legend,
-} from "recharts";
+import RecurringSummary from "@/components/RecurringSummary";
+import BudgetTracker from "@/components/BudgetTracker";
+import DashboardCards from "@/components/DashboardCards";
+import TransactionRow from "@/components/TransactionRow";
+import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
 
+// Import utility functions (we'll add these below)
+function isCreditCardPayment(description: string): boolean {
+  const keywords = ['credit card payment', 'cc payment', 'payment - credit card', 'cc pmt'];
+  return keywords.some(kw => description.toLowerCase().includes(kw));
+}
+
+function getExpenseThreshold(transactions: any[]): Record<string, number> {
+  const categoryExpenses: Record<string, number[]> = {};
+  
+  transactions.forEach((t) => {
+    const amt = parseFloat(t.Amount);
+    if (amt >= 0 || isCreditCardPayment(t.Description)) return;
+    
+    const category = t.Category || "Other";
+    if (!categoryExpenses[category]) categoryExpenses[category] = [];
+    categoryExpenses[category].push(Math.abs(amt));
+  });
+
+  const thresholds: Record<string, number> = {};
+  Object.keys(categoryExpenses).forEach((cat) => {
+    const expenses = categoryExpenses[cat].sort((a, b) => a - b);
+    thresholds[cat] = expenses.length > 0 ? expenses[Math.floor(expenses.length * 0.90)] : Infinity;
+  });
+
+  return thresholds;
+}
+
+function isUnusual(amount: string, category: string, description: string, thresholds: Record<string, number>): boolean {
+  const amt = parseFloat(amount);
+  if (amt >= 0 || isCreditCardPayment(description)) return false;
+  return Math.abs(amt) > (thresholds[category] || Infinity);
+}
+
+function isDuplicate(desc: string, amount: string, date: string, transactions: any[], currentIndex: number): boolean {
+  const targetDate = new Date(date).toDateString();
+  return transactions.some((t, i) => 
+    i !== currentIndex && 
+    t.Description.toLowerCase() === desc.toLowerCase() && 
+    t.Amount === amount && 
+    new Date(t.Date).toDateString() === targetDate
+  );
+}
+
+function getSubscriptionFrequency(desc: string, amount: string, date: string, transactions: any[]): string | null {
+  const targetDate = new Date(date);
+  const similar = transactions.filter((t) => {
+    const isSameDesc = t.Description.toLowerCase() === desc.toLowerCase();
+    const amountSimilar = Math.abs(Math.abs(parseFloat(t.Amount)) - Math.abs(parseFloat(amount))) < 1;
+    return isSameDesc && amountSimilar;
+  });
+
+  if (similar.length < 2) return null;
+
+  const sorted = similar.map(t => new Date(t.Date)).sort((a, b) => a.getTime() - b.getTime());
+  const previousDate = sorted.filter(d => d < targetDate).pop();
+  if (!previousDate) return null;
+
+  const daysBetween = Math.round((targetDate.getTime() - previousDate.getTime()) / (1000 * 60 * 60 * 24));
+  
+  if (daysBetween < 14) return `⚠️ ${daysBetween}d`;
+  if (daysBetween >= 14 && daysBetween < 30) return `❓ Bi-wk`;
+  return null;
+}
+
+function processTransactionData(data: any[], isCreditCard: boolean) {
+  return data.map((t: any) => {
+    let amount = String(t.Amount).replace(/[$,]/g, "").trim();
+    if (isCreditCard) {
+      const numAmount = parseFloat(amount);
+      if (!isNaN(numAmount)) amount = String(-numAmount);
+    }
+    return {
+      Date: String(t.Date).trim(),
+      Description: String(t.Description).trim(),
+      Amount: amount,
+      Category: "",
+    };
+  });
+}
 type Transaction = {
   Date: string;
   Description: string;
   Amount: string;
   Category: string;
-  [key: string]: string;
 };
+
+const CATEGORY_OPTIONS = ["Income", "Food & Drink", "Shopping", "Entertainment", "Transport", "Groceries", "Utilities", "Rent", "Travel", "Bills", "Services", "Other"];
+const COLORS = ["#8884d8", "#82ca9d", "#ffc658", "#ff7f50", "#a4de6c", "#d0ed57", "#8dd1e1", "#83a6ed", "#d88484", "#a78bfa"];
 
 export default function CSVUploader() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState("All");
   const [visibleCount, setVisibleCount] = useState(15);
-  const [anomalies, setAnomalies] = useState<Set<number>>(new Set());
+  const [accountType, setAccountType] = useState<'bank' | 'credit'>('bank');
+  const [showModal, setShowModal] = useState(false);
 
+  // Load and save transactions
   useEffect(() => {
-    const stored = localStorage.getItem("transactions");
-    if (stored) {
-      setTransactions(JSON.parse(stored));
-    }
+    fetch("/api/transactions/get")
+      .then(res => res.json())
+      .then(data => data.transactions?.length > 0 && setTransactions(data.transactions))
+      .catch(console.error);
   }, []);
 
   useEffect(() => {
-    localStorage.setItem("transactions", JSON.stringify(transactions));
+    if (transactions.length === 0) return;
+    const timer = setTimeout(() => {
+      fetch("/api/transactions/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ transactions }),
+      }).catch(console.error);
+    }, 1000);
+    return () => clearTimeout(timer);
   }, [transactions]);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -49,345 +132,377 @@ export default function CSVUploader() {
     if (!file) return;
     setLoading(true);
 
-    if (file.name.endsWith(".csv")){
+    try {
+      let cleaned: any[] = [];
 
-    Papa.parse(file, {
-      header: true,
-      skipEmptyLines: true,
-      complete: async (results: Papa.ParseResult<any>) => {
-        try {
-          const cleaned = results.data
-            .filter((t) => t.Date && (t.Description || t["Sub-Description"]) && t.Amount)
-            .map((t) => ({
-              Date: t.Date.trim(),
-              Description: (t.Description || t["Sub-Description"] || "").trim(),
-              Amount: t.Amount.replace(/[$,]/g, "").trim(),
-              Category: "",
-            }));
-
-          const descriptions = cleaned.map((t) => t.Description);
-
-          const response = await fetch("/api/suggest-category", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ descriptions }),
-          });
-
-          const { suggestions } = await response.json();
-
-          const enriched = cleaned.map((row, i) => ({
-            ...row,
-            Category: suggestions[i] || "Other",
+      if (file.name.endsWith(".csv")) {
+        const result: any = await new Promise((resolve) => {
+          Papa.parse(file, { header: true, skipEmptyLines: true, complete: resolve });
+        });
+        
+        cleaned = result.data
+          .filter((t: any) => (t.Date || t["Transaction Date"]) && (t.Description || t["Description 1"]) && (t.Amount || t["CAD$"]))
+          .map((t: any) => ({
+            Date: t.Date || t["Transaction Date"] || "",
+            Description: [t.Description || t["Description 1"], t["Description 2"]].filter(Boolean).join(" ").trim(),
+            Amount: (t.Amount || t["CAD$"] || t["USD$"] || "").replace(/[$,]/g, ""),
           }));
+      } else if (file.name.endsWith(".xlsx") || file.name.endsWith(".xls")) {
+        const arrayBuffer = await file.arrayBuffer();
+        const workbook = XLSX.read(new Uint8Array(arrayBuffer), { type: 'array' });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const allRows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false });
 
-          setTransactions(enriched);
-          const anomalyRes = await fetch("/api/anomaly-check", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ transactions: enriched }),
-          });
-          const { anomalies } = await anomalyRes.json();
-          setAnomalies(new Set(anomalies));
-          setCategoryFilter("All");
-          setVisibleCount(15);
-        } catch (error) {
-          console.error("Error categorizing:", error);
-        } finally {
-          setLoading(false);
-        }
-      },
-    })} else if (file.name.endsWith(".xlsx") || file.name.endsWith(".xls")) {
-      // use SheetJS
+        let headerIdx = allRows.findIndex(row => 
+          row.some((cell: any) => String(cell).toLowerCase().includes('date')) &&
+          row.some((cell: any) => String(cell).toLowerCase().includes('description')) &&
+          row.some((cell: any) => String(cell).toLowerCase().includes('amount'))
+        );
+
+        if (headerIdx === -1) throw new Error("Invalid file format");
+
+        const jsonData = XLSX.utils.sheet_to_json(sheet, { range: headerIdx, raw: false });
+        const headers = allRows[headerIdx];
+        const dateCol = headers.find((h: any) => String(h).toLowerCase().includes('date'));
+        const descCol = headers.find((h: any) => String(h).toLowerCase().includes('description'));
+        const amtCol = headers.find((h: any) => String(h).toLowerCase().includes('amount'));
+
+        cleaned = jsonData
+          .filter((row: any) => row[dateCol] && row[descCol] && row[amtCol])
+          .map((row: any) => ({
+            Date: row[dateCol],
+            Description: row[descCol],
+            Amount: String(row[amtCol]).replace(/[$,]/g, ""),
+          }));
+      }
+
+      const processed = processTransactionData(cleaned, accountType === 'credit');
+      const descriptions = processed.map(t => t.Description);
+      
+      const response = await fetch("/api/suggest-category", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ descriptions }),
+      });
+      
+      const { suggestions } = await response.json();
+      const enriched = processed.map((row, i) => ({ ...row, Category: suggestions[i] || "Other" }));
+
+      setTransactions(enriched);
+      setCategoryFilter("All");
+      setVisibleCount(15);
+    } catch (error) {
+      alert("Error processing file: " + (error as Error).message);
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleExportCSV = () => {
-    if (transactions.length === 0) return;
     const csv = Papa.unparse(transactions);
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
+    const blob = new Blob([csv], { type: "text/csv" });
     const link = document.createElement("a");
-    link.href = url;
-    link.setAttribute("download", "categorized_transactions.csv");
-    document.body.appendChild(link);
+    link.href = URL.createObjectURL(blob);
+    link.download = "finflow_transactions.csv";
     link.click();
-    document.body.removeChild(link);
   };
 
-  const updateCategory = (index: number, newCategory: string) => {
+  const updateCategory = (index: number, category: string) => {
     const updated = [...transactions];
-    updated[index].Category = newCategory;
+    updated[index].Category = category;
     setTransactions(updated);
   };
 
-  const categoryOptions = [
-    "Income", "Food & Drink", "Shopping", "Entertainment", "Transport",
-    "Groceries", "Utilities", "Rent", "Travel", "Bills", "Services", "Other",
-  ];
+  const filteredTransactions = useMemo(() => 
+    transactions.filter(t => categoryFilter === "All" || t.Category === categoryFilter),
+    [transactions, categoryFilter]
+  );
 
-  const filteredTransactions = useMemo(() => {
-    return transactions.filter((t) =>
-      categoryFilter === "All" ? true : t.Category === categoryFilter
+  const expenseThreshold = useMemo(() => getExpenseThreshold(transactions), [transactions]);
+
+  const categoryData = useMemo(() => 
+    Object.entries(
+      filteredTransactions.reduce((acc: Record<string, number>, t) => {
+        const cat = t.Category || "Other";
+        acc[cat] = (acc[cat] || 0) + Math.abs(parseFloat(t.Amount));
+        return acc;
+      }, {})
+    ).map(([name, value]) => ({ name, value })),
+    [filteredTransactions]
+  );
+
+  const dailyData = useMemo(() => 
+    filteredTransactions.map(t => ({
+      ShortDate: t.Date.slice(5),
+      Income: parseFloat(t.Amount) > 0 ? parseFloat(t.Amount) : 0,
+      Expense: parseFloat(t.Amount) < 0 ? Math.abs(parseFloat(t.Amount)) : 0,
+    })),
+    [filteredTransactions]
+  );
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-20 h-20 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin mx-auto mb-4"></div>
+          <h3 className="text-2xl font-bold text-gray-900 mb-2">AI is analyzing your transactions</h3>
+          <p className="text-gray-600">This usually takes 10-15 seconds...</p>
+        </div>
+      </div>
     );
-  }, [transactions, categoryFilter]);
+  }
 
-  const totalIncome = filteredTransactions
-    .filter((t) => parseFloat(t.Amount) > 0)
-    .reduce((sum, t) => sum + parseFloat(t.Amount), 0);
-
-  const totalExpense = filteredTransactions
-  .filter((t) => parseFloat(t.Amount) < 0)
-  .reduce((sum, t) => sum + parseFloat(t.Amount), 0);
-
-  const getExpenseThreshold = () => {
-  const expenses = transactions
-    .map((t) => parseFloat(t.Amount.replace(/[^0-9.-]+/g, ""))) // safely parse even "$1,200.00"
-    .filter((a) => !isNaN(a) && a < 0)
-    .map((a) => Math.abs(a))
-    .sort((a, b) => a - b);
-
-  if (expenses.length === 0) return Infinity;
-
-  const mid = Math.floor(expenses.length / 2);
-  const median =
-    expenses.length % 2 === 0
-      ? (expenses[mid - 1] + expenses[mid]) / 2
-      : expenses[mid];
-
-  return median *  1.5;
-};
-
-
-
-const expenseThreshold = getExpenseThreshold();
-
-const isUnusual = (amount: string) => {
-  const amt = parseFloat(amount.replace(/[^0-9.-]+/g, ""));
-  return amt < 0 && Math.abs(amt) > expenseThreshold;
-};
-
-
-
-  const isDuplicate = (desc: string, amount: string, index: number) => {
-  const targetDate = new Date(transactions[index].Date);
-
-  return transactions.some((t, i) => {
-    if (i === index) return false;
-
-    const isSameDesc = t.Description === desc;
-    const isSameAmount = t.Amount === amount;
-
-    const currentDate = new Date(t.Date);
-    const dayDiff = Math.abs((+targetDate - +currentDate) / (1000 * 60 * 60 * 24));
-
-    return isSameDesc && isSameAmount && dayDiff <= 7;
-  });
-};
-
-
-  const COLORS = [
-    "#8884d8", "#82ca9d", "#ffc658", "#ff7f50", "#a4de6c",
-    "#d0ed57", "#8dd1e1", "#83a6ed", "#d88484", "#a78bfa",
-  ];
-
-  const categoryData = Object.entries(
-    filteredTransactions.reduce((acc: Record<string, number>, t) => {
-      const category = t.Category || "Other";
-      const amount = Math.abs(parseFloat(t.Amount));
-      if (!acc[category]) acc[category] = 0;
-      acc[category] += amount;
-      return acc;
-    }, {})
-  ).map(([name, value]) => ({ name, value }));
-
-  const dailyData = filteredTransactions.map((t) => ({
-    Date: t.Date,
-    ShortDate: t.Date.slice(5),
-    Income: parseFloat(t.Amount) > 0 ? parseFloat(t.Amount) : 0,
-    Expense: parseFloat(t.Amount) < 0 ? Math.abs(parseFloat(t.Amount)) : 0,
-  }));
+  if (filteredTransactions.length === 0) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center p-4">
+        <div className="text-center max-w-md">
+          <div className="w-20 h-20 bg-gradient-to-br from-blue-50 to-purple-50 rounded-full flex items-center justify-center mx-auto mb-6">
+            <svg className="w-10 h-10 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+            </svg>
+          </div>
+          <h3 className="text-2xl font-bold text-gray-900 mb-3">Ready to analyze your spending?</h3>
+          <p className="text-gray-600 mb-8">Upload your bank statement and get instant AI-powered insights.</p>
+          <button
+            onClick={() => setShowModal(true)}
+            className="bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold py-4 px-8 rounded-xl shadow-lg hover:shadow-xl transition-all"
+          >
+            Upload Your First Statement
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="bg-white border border-gray-200 text-gray-800 rounded-xl shadow-lg px-8 py-10 space-y-10 transition-colors duration-300">
-      {/* Upload + Export + Filter */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-center">
-        <div className="flex gap-4 flex-wrap">
-          <label className="cursor-pointer bg-blue-600 text-white font-semibold py-2 px-6 rounded-lg shadow hover:bg-blue-700 transition duration-150">
-            Choose CSV File
-            <input
-              type="file"
-              accept=".csv,.xlsx,.xls"
-              onChange={handleFileUpload}
-              className="hidden"
-            />
-          </label>
-          {transactions.length > 0 && (
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      <div className="max-w-[1600px] mx-auto px-4 sm:px-6 py-6 sm:py-8">
+        
+        {/* HEADER */}
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6 sm:mb-8">
+          <div>
+            <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-1">Dashboard</h1>
+            <p className="text-gray-600 text-sm sm:text-base">Manage and analyze your transactions</p>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-3">
+            <button
+              onClick={() => setShowModal(true)}
+              className="bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold py-3 px-6 rounded-xl shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+              </svg>
+              Upload
+            </button>
             <button
               onClick={handleExportCSV}
-              className="bg-green-600 text-white font-semibold py-2 px-6 rounded-lg shadow hover:bg-green-700 transition duration-150"
+              className="bg-white border-2 border-gray-300 text-gray-700 font-semibold py-3 px-6 rounded-xl hover:border-gray-400 transition-all flex items-center justify-center gap-2"
             >
-              Export CSV
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+              Export
             </button>
-          )}
+          </div>
         </div>
 
-        {filteredTransactions.length > 0 && (
-          <div className="flex gap-6 text-sm font-semibold">
-            <div className="flex items-center gap-1 text-green-500">
-              <ArrowUpCircle size={18} /> Income: ${totalIncome.toFixed(2)}
+        {/* DASHBOARD CARDS */}
+        <div className="mb-6 sm:mb-8">
+          <DashboardCards transactions={filteredTransactions} />
+        </div>
+
+        {/* 2-COLUMN LAYOUT */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
+          
+          {/* TRANSACTIONS */}
+          <div className="lg:col-span-2 space-y-6">
+            
+            {/* FILTER */}
+            <div className="bg-white rounded-2xl shadow-md p-4 sm:p-6">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <label className="text-sm font-semibold text-gray-700">Filter by Category:</label>
+                <select
+                  value={categoryFilter}
+                  onChange={(e) => setCategoryFilter(e.target.value)}
+                  className="border border-gray-300 rounded-lg px-4 py-2 text-sm w-full sm:w-auto"
+                >
+                  <option value="All">All Categories</option>
+                  {CATEGORY_OPTIONS.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                </select>
+              </div>
             </div>
-            <div className="flex items-center gap-1 text-red-400">
-              <ArrowDownCircle size={18} /> Expense: ${Math.abs(totalExpense).toFixed(2)}
+
+            {/* TABLE */}
+            <div className="bg-white rounded-2xl shadow-md overflow-hidden">
+              <div className="p-4 sm:p-6 border-b border-gray-200">
+                <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Recent Transactions</h2>
+                <p className="text-gray-600 text-sm mt-1">
+                  Showing {Math.min(visibleCount, filteredTransactions.length)} of {filteredTransactions.length}
+                </p>
+              </div>
+              
+              {/* DESKTOP TABLE */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b-2 border-gray-200">
+                      <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase w-[110px]">Date</th>
+                      <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Description</th>
+                      <th className="px-3 py-3 text-right text-xs font-semibold text-gray-600 uppercase w-[100px]">Amount</th>
+                      <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase w-[140px]">Category</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredTransactions.slice(0, visibleCount).map((row, idx) => (
+                      <TransactionRow
+                        key={idx}
+                        transaction={row}
+                        index={idx}
+                        categoryOptions={CATEGORY_OPTIONS}
+                        onCategoryChange={updateCategory}
+                        badges={{
+                          isUnusual: isUnusual(row.Amount, row.Category, row.Description, expenseThreshold),
+                          isDuplicate: isDuplicate(row.Description, row.Amount, row.Date, transactions, idx),
+                          frequencyWarning: getSubscriptionFrequency(row.Description, row.Amount, row.Date, transactions),
+                        }}
+                      />
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* MOBILE CARDS */}
+              <div className="md:hidden p-4 space-y-4">
+                {filteredTransactions.slice(0, visibleCount).map((row, idx) => (
+                  <TransactionRow
+                    key={idx}
+                    transaction={row}
+                    index={idx}
+                    categoryOptions={CATEGORY_OPTIONS}
+                    onCategoryChange={updateCategory}
+                    badges={{
+                      isUnusual: isUnusual(row.Amount, row.Category, row.Description, expenseThreshold),
+                      isDuplicate: isDuplicate(row.Description, row.Amount, row.Date, transactions, idx),
+                      frequencyWarning: getSubscriptionFrequency(row.Description, row.Amount, row.Date, transactions),
+                    }}
+                  />
+                ))}
+              </div>
+
+              {/* SHOW MORE */}
+              {transactions.length > 15 && (
+                <div className="p-4 sm:p-6 border-t border-gray-200 flex justify-center gap-4">
+                  {visibleCount < filteredTransactions.length && (
+                    <button onClick={() => setVisibleCount(prev => prev + 15)} className="bg-blue-600 text-white font-semibold px-6 py-2.5 rounded-lg">
+                      Show More
+                    </button>
+                  )}
+                  {visibleCount > 15 && (
+                    <button onClick={() => setVisibleCount(15)} className="bg-gray-200 text-gray-800 font-semibold px-6 py-2.5 rounded-lg">
+                      Show Less
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           </div>
-        )}
+
+          {/* CHARTS & INSIGHTS */}
+          <div className="space-y-6">
+            
+            {/* PIE CHART */}
+            <div className="bg-white rounded-2xl shadow-md p-6">
+              <h3 className="text-xl font-bold text-gray-900 mb-4">Spending by Category</h3>
+              <div className="h-[280px] sm:h-[320px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={categoryData} cx="50%" cy="50%" outerRadius={80} dataKey="value" label={false}>
+                      {categoryData.map((_, index) => <Cell key={index} fill={COLORS[index % COLORS.length]} />)}
+                    </Pie>
+                    <Tooltip />
+                    <Legend verticalAlign="bottom" height={36} wrapperStyle={{ fontSize: '11px' }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            <RecurringSummary transactions={filteredTransactions} />
+            <BudgetTracker transactions={filteredTransactions} />
+          </div>
+        </div>
+
+        {/* BAR CHART */}
+        <div className="mt-6 lg:mt-8 bg-white rounded-2xl shadow-md p-4 sm:p-6">
+          <h3 className="text-xl font-bold text-gray-900 mb-4">Daily Income & Expenses</h3>
+          <div className="h-[250px] sm:h-[350px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={dailyData} margin={{ top: 20, right: 10, left: 0, bottom: 40 }}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="ShortDate" angle={-25} textAnchor="end" interval={0} tick={{ fontSize: 10 }} />
+                <YAxis tick={{ fontSize: 10 }} />
+                <Tooltip />
+                <Bar dataKey="Income" fill="#4ade80" radius={[4, 4, 0, 0]} barSize={20} />
+                <Bar dataKey="Expense" fill="#f97316" radius={[4, 4, 0, 0]} barSize={20} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        <div className="mt-6 lg:mt-8">
+          <InsightsAssistant transactions={transactions} />
+        </div>
       </div>
 
-      {/* Category Filter */}
-      {transactions.length > 0 && (
-        <div className="flex flex-wrap items-center gap-4">
-          <label className="text-sm font-medium">Filter by Category:</label>
-          <select
-            value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value="All">All</option>
-            {categoryOptions.map((cat) => (
-              <option key={cat} value={cat}>{cat}</option>
-            ))}
-          </select>
-        </div>
-      )}
+      {/* MODAL */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+            <h3 className="text-xl sm:text-2xl font-bold text-gray-900 mb-4">Select Statement Type</h3>
+            <p className="text-sm text-gray-600 mb-6">What type of statement are you uploading?</p>
+            
+            <div className="space-y-3 mb-6">
+              {[
+                { value: 'bank', icon: '🏦', title: 'Bank Account', subtitle: 'Chequing or Savings' },
+                { value: 'credit', icon: '💳', title: 'Credit Card', subtitle: 'Amex, Visa, Mastercard' }
+              ].map(({ value, icon, title, subtitle }) => (
+                <label
+                  key={value}
+                  className={`flex items-center gap-3 p-4 border-2 rounded-xl cursor-pointer hover:bg-gray-50 transition ${
+                    accountType === value ? 'border-blue-600 bg-blue-50' : 'border-gray-200'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="accountType"
+                    value={value}
+                    checked={accountType === value}
+                    onChange={(e) => setAccountType(e.target.value as 'bank' | 'credit')}
+                    className="w-5 h-5"
+                  />
+                  <div className="flex-1">
+                    <span className="text-lg font-semibold text-gray-900">{icon} {title}</span>
+                    <p className="text-sm text-gray-500">{subtitle}</p>
+                  </div>
+                </label>
+              ))}
+            </div>
 
-      {/* Table */}
-      {loading ? (
-        <div className="text-center py-16 text-blue-500 animate-pulse">
-          <p className="text-xl font-semibold mb-2">Categorizing with AI...</p>
-          <p className="text-sm text-gray-500">Please wait while we analyze your transactions</p>
-        </div>
-      ) : filteredTransactions.length === 0 ? (
-        <div className="text-center py-16 text-gray-400">
-          <p className="text-lg">No matching transactions.</p>
-        </div>
-      ) : (
-        <>
-          <div className="overflow-x-auto border border-gray-200 rounded-lg">
-            <table className="min-w-full text-sm text-left border-collapse">
-              <thead className="bg-gray-100 text-gray-700 font-medium">
-                <tr>
-                  {Object.keys(filteredTransactions[0]).map((key) => (
-                    <th key={key} className="px-5 py-3 border-b border-r last:border-r-0">
-                      {key}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filteredTransactions.slice(0, visibleCount).map((row, idx) => (
-                  <tr
-                    key={idx}
-                    className="odd:bg-white even:bg-gray-50 hover:bg-blue-50 transition"
-                  >
-                    {Object.entries(row).map(([key, val], i) => (
-                      <td key={i} className="px-5 py-3 border-b border-r last:border-r-0">
-                        {key === "Category" ? (
-                          <select
-                            value={val}
-                            onChange={(e) => updateCategory(idx, e.target.value)}
-                            className="bg-white border border-gray-300 rounded px-2 py-1 text-sm"
-                          >
-                            {categoryOptions.map((option) => (
-                              <option key={option} value={option}>{option}</option>
-                            ))}
-                          </select>
-                        ) : key === "Amount" ? (
-                          <span className="flex flex-col gap-1">
-                          <span>{val}</span>
-                          <div className="flex gap-2 flex-wrap">
-                            {isUnusual(row.Amount) && (
-                            <span className="text-red-600 text-xs font-semibold bg-red-100 px-2 py-1 rounded">
-                              ⚠️ Unusually High
-                            </span>
-                          )}
-
-
-                            {isDuplicate(row.Description, row.Amount, idx) && (
-                              <span className="text-yellow-600 text-xs font-semibold bg-yellow-100 px-2 py-1 rounded">
-                                🔁 Repeated
-                              </span>
-                            )}
-                          </div>
-                        </span>
-                        ) : (
-                          val
-                        )}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Show More */}
-          {transactions.length > 15 && (
-  <div className="mt-6 flex justify-center gap-4">
-    {visibleCount < filteredTransactions.length && (
-      <button
-        onClick={() => setVisibleCount((prev) => prev + 15)}
-        className="bg-blue-600 text-white px-6 py-2 rounded-md shadow hover:bg-blue-700 transition"
-      >
-        Show More
-      </button>
-    )}
-    {visibleCount > 15 && (
-      <button
-        onClick={() => setVisibleCount(15)}
-        className="bg-gray-300 text-gray-800 px-6 py-2 rounded-md hover:bg-gray-400 transition"
-      >
-        Show Less
-      </button>
-    )}
-  </div>
-)}
-
-          {/* Charts */}
-          <div className="pt-8">
-            <h3 className="text-xl font-bold mb-4 text-center">Spending Breakdown by Category</h3>
-            <div className="w-full h-[300px]">
-              <ResponsiveContainer>
-                <PieChart>
-                  <Pie data={categoryData} cx="50%" cy="50%" outerRadius={100} fill="#8884d8" dataKey="value" label>
-                    {categoryData.map((_, index) => (
-                      <Cell key={index} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowModal(false)}
+                className="flex-1 px-6 py-3 border-2 border-gray-300 text-gray-700 font-semibold rounded-xl hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <label className="flex-1">
+                <div className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold rounded-xl hover:shadow-lg transition text-center cursor-pointer">
+                  Continue
+                </div>
+                <input type="file" accept=".csv,.xlsx,.xls" onChange={(e) => { setShowModal(false); handleFileUpload(e); }} className="hidden" />
+              </label>
             </div>
           </div>
-
-          <div className="pt-12">
-            <h3 className="text-xl font-bold mb-4 text-center">Daily Income & Expenses</h3>
-            <div className="w-full h-[350px] bg-gray-50 border border-gray-200 rounded-xl p-4 shadow-sm">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={dailyData} margin={{ top: 20, right: 20, left: 0, bottom: 40 }}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="ShortDate" angle={-25} textAnchor="end" interval={0} tick={{ fontSize: 12 }} />
-                  <YAxis tick={{ fontSize: 12 }} />
-                  <Tooltip />
-                  <Legend verticalAlign="top" height={36} />
-                  <Bar dataKey="Income" stackId="a" fill="#4ade80" radius={[4, 4, 0, 0]} barSize={20} />
-                  <Bar dataKey="Expense" stackId="a" fill="#f97316" radius={[4, 4, 0, 0]} barSize={20} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-
-          <InsightsAssistant transactions={transactions} />
-        </>
+        </div>
       )}
     </div>
   );

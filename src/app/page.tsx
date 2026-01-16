@@ -22,12 +22,6 @@ export default async function Home() {
     <Navbar />
     <main className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 transition-colors duration-300 py-12 px-4">
       <div className="max-w-5xl mx-auto">
-        <h1 className="text-4xl sm:text-5xl font-extrabold text-center text-blue-800 mb-4">
-          Smart Transaction Sorter 💸
-        </h1>
-        <p className="text-center text-gray-600 mb-10 text-lg max-w-2xl mx-auto">
-          Upload your bank CSV and instantly see categorized insights with beautiful visuals.
-        </p>
         <CSVUploader />
       </div>
     </main>

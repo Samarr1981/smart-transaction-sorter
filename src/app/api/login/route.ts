@@ -14,7 +14,7 @@ export async function POST(req: Request) {
   const isMatch = await bcrypt.compare(password, user.password);
   if (!isMatch) return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
 
-  const token = jwt.sign({ email: user.email }, process.env.JWT_SECRET!, {
+  const token = jwt.sign({ userId: user._id.toString(),email: user.email }, process.env.JWT_SECRET!, {
     expiresIn: "7d",
   });
 
