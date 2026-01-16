@@ -7,7 +7,7 @@ import InsightsAssistant from "@/components/InsightsAssistant";
 import RecurringSummary from "@/components/RecurringSummary";
 import BudgetTracker from "@/components/BudgetTracker";
 import DashboardCards from "@/components/DashboardCards";
-import TransactionRow from "@/components/TransactionRow";
+import { DesktopTransactionRow, MobileTransactionCard } from "@/components/TransactionRow";
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
 
 // Import utility functions (we'll add these below)
@@ -89,6 +89,7 @@ function processTransactionData(data: any[], isCreditCard: boolean) {
     };
   });
 }
+
 type Transaction = {
   Date: string;
   Description: string;
@@ -105,7 +106,7 @@ export default function CSVUploader() {
   const [categoryFilter, setCategoryFilter] = useState("All");
   const [visibleCount, setVisibleCount] = useState(15);
   const [accountType, setAccountType] = useState<'bank' | 'credit'>('bank');
-  const [showModal, setShowModal] = useState(false);
+  const [showModal, setShowModal] = useState(false); // CHANGED FROM true TO false
 
   // Load and save transactions
   useEffect(() => {
@@ -254,23 +255,91 @@ export default function CSVUploader() {
 
   if (filteredTransactions.length === 0) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center p-4">
-        <div className="text-center max-w-md">
-          <div className="w-20 h-20 bg-gradient-to-br from-blue-50 to-purple-50 rounded-full flex items-center justify-center mx-auto mb-6">
-            <svg className="w-10 h-10 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-            </svg>
+      <>
+        <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center p-4">
+          <div className="text-center max-w-md">
+            <div className="w-20 h-20 bg-gradient-to-br from-blue-50 to-purple-50 rounded-full flex items-center justify-center mx-auto mb-6">
+              <svg className="w-10 h-10 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+              </svg>
+            </div>
+            <h3 className="text-2xl font-bold text-gray-900 mb-3">Ready to analyze your spending?</h3>
+            <p className="text-gray-600 mb-8">Upload your bank statement and get instant AI-powered insights.</p>
+            <button
+              onClick={() => setShowModal(true)}
+              className="bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold py-4 px-8 rounded-xl shadow-lg hover:shadow-xl transition-all"
+            >
+              Upload Your First Statement
+            </button>
           </div>
-          <h3 className="text-2xl font-bold text-gray-900 mb-3">Ready to analyze your spending?</h3>
-          <p className="text-gray-600 mb-8">Upload your bank statement and get instant AI-powered insights.</p>
-          <button
-            onClick={() => setShowModal(true)}
-            className="bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold py-4 px-8 rounded-xl shadow-lg hover:shadow-xl transition-all"
-          >
-            Upload Your First Statement
-          </button>
         </div>
-      </div>
+
+        {/* MODAL */}
+        {showModal && (
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4"
+            style={{ zIndex: 9999, position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}
+          >
+            <div 
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 className="text-xl sm:text-2xl font-bold text-gray-900 mb-4">Select Statement Type</h3>
+              <p className="text-sm text-gray-600 mb-6">What type of statement are you uploading?</p>
+              
+              <div className="space-y-3 mb-6">
+                {[
+                  { value: 'bank', icon: '🏦', title: 'Bank Account', subtitle: 'Chequing or Savings' },
+                  { value: 'credit', icon: '💳', title: 'Credit Card', subtitle: 'Amex, Visa, Mastercard' }
+                ].map(({ value, icon, title, subtitle }) => (
+                  <label
+                    key={value}
+                    className={`flex items-center gap-3 p-4 border-2 rounded-xl cursor-pointer hover:bg-gray-50 transition ${
+                      accountType === value ? 'border-blue-600 bg-blue-50' : 'border-gray-200'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="accountType"
+                      value={value}
+                      checked={accountType === value}
+                      onChange={(e) => setAccountType(e.target.value as 'bank' | 'credit')}
+                      className="w-5 h-5"
+                    />
+                    <div className="flex-1">
+                      <span className="text-lg font-semibold text-gray-900">{icon} {title}</span>
+                      <p className="text-sm text-gray-500">{subtitle}</p>
+                    </div>
+                  </label>
+                ))}
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowModal(false)}
+                  className="flex-1 px-6 py-3 border-2 border-gray-300 text-gray-700 font-semibold rounded-xl hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <label className="flex-1">
+                  <div className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold rounded-xl hover:shadow-lg transition text-center cursor-pointer">
+                    Continue
+                  </div>
+                  <input 
+                    type="file" 
+                    accept=".csv,.xlsx,.xls" 
+                    onChange={(e) => { 
+                      setShowModal(false); 
+                      handleFileUpload(e); 
+                    }} 
+                    className="hidden" 
+                  />
+                </label>
+              </div>
+            </div>
+          </div>
+        )}
+      </>
     );
   }
 
@@ -341,53 +410,53 @@ export default function CSVUploader() {
                 </p>
               </div>
               
-              {/* DESKTOP TABLE */}
-              <div className="hidden md:block overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b-2 border-gray-200">
-                      <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase w-[110px]">Date</th>
-                      <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Description</th>
-                      <th className="px-3 py-3 text-right text-xs font-semibold text-gray-600 uppercase w-[100px]">Amount</th>
-                      <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase w-[140px]">Category</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredTransactions.slice(0, visibleCount).map((row, idx) => (
-                      <TransactionRow
-                        key={idx}
-                        transaction={row}
-                        index={idx}
-                        categoryOptions={CATEGORY_OPTIONS}
-                        onCategoryChange={updateCategory}
-                        badges={{
-                          isUnusual: isUnusual(row.Amount, row.Category, row.Description, expenseThreshold),
-                          isDuplicate: isDuplicate(row.Description, row.Amount, row.Date, transactions, idx),
-                          frequencyWarning: getSubscriptionFrequency(row.Description, row.Amount, row.Date, transactions),
-                        }}
-                      />
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+             {/* DESKTOP TABLE */}
+<div className="hidden md:block overflow-x-auto">
+  <table className="w-full">
+    <thead>
+      <tr className="border-b-2 border-gray-200">
+        <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase w-[110px]">Date</th>
+        <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Description</th>
+        <th className="px-3 py-3 text-right text-xs font-semibold text-gray-600 uppercase w-[100px]">Amount</th>
+        <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase w-[140px]">Category</th>
+      </tr>
+    </thead>
+    <tbody>
+      {filteredTransactions.slice(0, visibleCount).map((row, idx) => (
+        <DesktopTransactionRow
+          key={idx}
+          transaction={row}
+          index={idx}
+          categoryOptions={CATEGORY_OPTIONS}
+          onCategoryChange={updateCategory}
+          badges={{
+            isUnusual: isUnusual(row.Amount, row.Category, row.Description, expenseThreshold),
+            isDuplicate: isDuplicate(row.Description, row.Amount, row.Date, transactions, idx),
+            frequencyWarning: getSubscriptionFrequency(row.Description, row.Amount, row.Date, transactions),
+          }}
+        />
+      ))}
+    </tbody>
+  </table>
+</div>
 
-              {/* MOBILE CARDS */}
-              <div className="md:hidden p-4 space-y-4">
-                {filteredTransactions.slice(0, visibleCount).map((row, idx) => (
-                  <TransactionRow
-                    key={idx}
-                    transaction={row}
-                    index={idx}
-                    categoryOptions={CATEGORY_OPTIONS}
-                    onCategoryChange={updateCategory}
-                    badges={{
-                      isUnusual: isUnusual(row.Amount, row.Category, row.Description, expenseThreshold),
-                      isDuplicate: isDuplicate(row.Description, row.Amount, row.Date, transactions, idx),
-                      frequencyWarning: getSubscriptionFrequency(row.Description, row.Amount, row.Date, transactions),
-                    }}
-                  />
-                ))}
-              </div>
+{/* MOBILE CARDS */}
+<div className="md:hidden p-4 space-y-4">
+  {filteredTransactions.slice(0, visibleCount).map((row, idx) => (
+    <MobileTransactionCard
+      key={idx}
+      transaction={row}
+      index={idx}
+      categoryOptions={CATEGORY_OPTIONS}
+      onCategoryChange={updateCategory}
+      badges={{
+        isUnusual: isUnusual(row.Amount, row.Category, row.Description, expenseThreshold),
+        isDuplicate: isDuplicate(row.Description, row.Amount, row.Date, transactions, idx),
+        frequencyWarning: getSubscriptionFrequency(row.Description, row.Amount, row.Date, transactions),
+      }}
+    />
+  ))}
+</div>
 
               {/* SHOW MORE */}
               {transactions.length > 15 && (
@@ -455,8 +524,14 @@ export default function CSVUploader() {
 
       {/* MODAL */}
       {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4"
+          style={{ zIndex: 9999, position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}
+        >
+          <div 
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
             <h3 className="text-xl sm:text-2xl font-bold text-gray-900 mb-4">Select Statement Type</h3>
             <p className="text-sm text-gray-600 mb-6">What type of statement are you uploading?</p>
             
@@ -498,7 +573,15 @@ export default function CSVUploader() {
                 <div className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold rounded-xl hover:shadow-lg transition text-center cursor-pointer">
                   Continue
                 </div>
-                <input type="file" accept=".csv,.xlsx,.xls" onChange={(e) => { setShowModal(false); handleFileUpload(e); }} className="hidden" />
+                <input 
+                  type="file" 
+                  accept=".csv,.xlsx,.xls" 
+                  onChange={(e) => { 
+                    setShowModal(false); 
+                    handleFileUpload(e); 
+                  }} 
+                  className="hidden" 
+                />
               </label>
             </div>
           </div>
