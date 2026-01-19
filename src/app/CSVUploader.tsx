@@ -9,6 +9,7 @@ import BudgetTracker from "@/components/BudgetTracker";
 import DashboardCards from "@/components/DashboardCards";
 import { DesktopTransactionRow, MobileTransactionCard } from "@/components/TransactionRow";
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
+import DeleteAllTransactionsButton from "@/components/DeleteAllTransactionsButton";
 
 // Import utility functions (we'll add these below)
 function isCreditCardPayment(description: string): boolean {
@@ -208,6 +209,12 @@ export default function CSVUploader() {
     link.click();
   };
 
+  const handleDeleteComplete = () => {
+     setTransactions([]);
+     setCategoryFilter("All");
+     setVisibleCount(15);
+   };
+
   const updateCategory = (index: number, category: string) => {
     const updated = [...transactions];
     updated[index].Category = category;
@@ -372,6 +379,7 @@ export default function CSVUploader() {
               </svg>
               Export
             </button>
+            <DeleteAllTransactionsButton onDeleteComplete={handleDeleteComplete} />
           </div>
         </div>
 
