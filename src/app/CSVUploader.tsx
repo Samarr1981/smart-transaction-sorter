@@ -78,10 +78,8 @@ function getSubscriptionFrequency(desc: string, amount: string, date: string, tr
 function processTransactionData(data: any[], isCreditCard: boolean) {
   return data.map((t: any) => {
     let amount = String(t.Amount).replace(/[$,]/g, "").trim();
-    if (isCreditCard) {
-      const numAmount = parseFloat(amount);
-      if (!isNaN(numAmount)) amount = String(-numAmount);
-    }
+    // No negation needed — credit card CSV already uses:
+    // negative = expense/purchase, positive = payment/refund
     return {
       Date: String(t.Date).trim(),
       Description: String(t.Description).trim(),
