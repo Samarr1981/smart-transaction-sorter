@@ -10,6 +10,8 @@ import DashboardCards from "@/components/DashboardCards";
 import { DesktopTransactionRow, MobileTransactionCard } from "@/components/TransactionRow";
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
 import DeleteAllTransactionsButton from "@/components/DeleteAllTransactionsButton";
+import { categoryColor } from "@/lib/categoryColors";
+import { formatCurrency, AMOUNT_CLASS } from "@/lib/currency";
 
 // Import utility functions (we'll add these below)
 function isCreditCardPayment(description: string): boolean {
@@ -19,11 +21,11 @@ function isCreditCardPayment(description: string): boolean {
 
 function getExpenseThreshold(transactions: any[]): Record<string, number> {
   const categoryExpenses: Record<string, number[]> = {};
-  
+
   transactions.forEach((t) => {
     const amt = parseFloat(t.Amount);
     if (amt >= 0 || isCreditCardPayment(t.Description)) return;
-    
+
     const category = t.Category || "Other";
     if (!categoryExpenses[category]) categoryExpenses[category] = [];
     categoryExpenses[category].push(Math.abs(amt));
@@ -46,10 +48,10 @@ function isUnusual(amount: string, category: string, description: string, thresh
 
 function isDuplicate(desc: string, amount: string, date: string, transactions: any[], currentIndex: number): boolean {
   const targetDate = new Date(date).toDateString();
-  return transactions.some((t, i) => 
-    i !== currentIndex && 
-    t.Description.toLowerCase() === desc.toLowerCase() && 
-    t.Amount === amount && 
+  return transactions.some((t, i) =>
+    i !== currentIndex &&
+    t.Description.toLowerCase() === desc.toLowerCase() &&
+    t.Amount === amount &&
     new Date(t.Date).toDateString() === targetDate
   );
 }
@@ -69,7 +71,7 @@ function getSubscriptionFrequency(desc: string, amount: string, date: string, tr
   if (!previousDate) return null;
 
   const daysBetween = Math.round((targetDate.getTime() - previousDate.getTime()) / (1000 * 60 * 60 * 24));
-  
+
   if (daysBetween < 14) return `⚠️ ${daysBetween}d`;
   if (daysBetween >= 14 && daysBetween < 30) return `❓ Bi-wk`;
   return null;
@@ -97,7 +99,6 @@ type Transaction = {
 };
 
 const CATEGORY_OPTIONS = ["Income", "Food & Drink", "Shopping", "Entertainment", "Transport", "Groceries", "Utilities", "Rent", "Travel", "Bills", "Services", "Other"];
-const COLORS = ["#8884d8", "#82ca9d", "#ffc658", "#ff7f50", "#a4de6c", "#d0ed57", "#8dd1e1", "#83a6ed", "#d88484", "#a78bfa"];
 
 export default function CSVUploader() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -139,7 +140,7 @@ export default function CSVUploader() {
         const result: any = await new Promise((resolve) => {
           Papa.parse(file, { header: true, skipEmptyLines: true, complete: resolve });
         });
-        
+
         cleaned = result.data
           .filter((t: any) => (t.Date || t["Transaction Date"]) && (t.Description || t["Description 1"]) && (t.Amount || t["CAD$"]))
           .map((t: any) => ({
@@ -153,7 +154,7 @@ export default function CSVUploader() {
         const sheet = workbook.Sheets[workbook.SheetNames[0]];
         const allRows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false });
 
-        let headerIdx = allRows.findIndex(row => 
+        let headerIdx = allRows.findIndex(row =>
           row.some((cell: any) => String(cell).toLowerCase().includes('date')) &&
           row.some((cell: any) => String(cell).toLowerCase().includes('description')) &&
           row.some((cell: any) => String(cell).toLowerCase().includes('amount'))
@@ -178,13 +179,13 @@ export default function CSVUploader() {
 
       const processed = processTransactionData(cleaned, accountType === 'credit');
       const descriptions = processed.map(t => t.Description);
-      
+
       const response = await fetch("/api/suggest-category", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ descriptions }),
       });
-      
+
       const { suggestions } = await response.json();
       const enriched = processed.map((row, i) => ({ ...row, Category: suggestions[i] || "Other" }));
 
@@ -219,14 +220,14 @@ export default function CSVUploader() {
     setTransactions(updated);
   };
 
-  const filteredTransactions = useMemo(() => 
+  const filteredTransactions = useMemo(() =>
     transactions.filter(t => categoryFilter === "All" || t.Category === categoryFilter),
     [transactions, categoryFilter]
   );
 
   const expenseThreshold = useMemo(() => getExpenseThreshold(transactions), [transactions]);
 
-  const categoryData = useMemo(() => 
+  const categoryData = useMemo(() =>
     Object.entries(
       filteredTransactions.reduce((acc: Record<string, number>, t) => {
         const cat = t.Category || "Other";
@@ -237,7 +238,7 @@ export default function CSVUploader() {
     [filteredTransactions]
   );
 
-  const dailyData = useMemo(() => 
+  const dailyData = useMemo(() =>
     filteredTransactions.map(t => ({
       ShortDate: t.Date.slice(5),
       Income: parseFloat(t.Amount) > 0 ? parseFloat(t.Amount) : 0,
@@ -248,11 +249,11 @@ export default function CSVUploader() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <div className="w-20 h-20 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin mx-auto mb-4"></div>
-          <h3 className="text-2xl font-bold text-gray-900 mb-2">AI is analyzing your transactions</h3>
-          <p className="text-gray-600">This usually takes 10-15 seconds...</p>
+          <div className="w-10 h-10 border-2 border-line border-t-accent rounded-full animate-spin mx-auto mb-4"></div>
+          <h3 className="text-lg font-semibold text-ink mb-1">Categorizing your transactions</h3>
+          <p className="text-sm text-ink-muted">This usually takes 10-15 seconds…</p>
         </div>
       </div>
     );
@@ -261,46 +262,46 @@ export default function CSVUploader() {
   if (filteredTransactions.length === 0) {
     return (
       <>
-        <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center p-4">
+        <div className="min-h-[70vh] flex items-center justify-center p-4">
           <div className="text-center max-w-md">
-            <div className="w-20 h-20 bg-gradient-to-br from-blue-50 to-purple-50 rounded-full flex items-center justify-center mx-auto mb-6">
-              <svg className="w-10 h-10 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="w-14 h-14 bg-surface border border-line rounded-md flex items-center justify-center mx-auto mb-5">
+              <svg className="w-6 h-6 text-ink-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
               </svg>
             </div>
-            <h3 className="text-2xl font-bold text-gray-900 mb-3">Ready to analyze your spending?</h3>
-            <p className="text-gray-600 mb-8">Upload your bank statement and get instant AI-powered insights.</p>
+            <h3 className="text-lg font-semibold text-ink mb-2">Ready to analyze your spending?</h3>
+            <p className="text-sm text-ink-muted mb-6">Upload a bank statement to get categorized transactions and spending insights.</p>
             <button
               onClick={() => setShowModal(true)}
-              className="bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold py-4 px-8 rounded-xl shadow-lg hover:shadow-xl transition-all"
+              className="bg-accent text-surface font-semibold text-sm py-2.5 px-5 rounded-md hover:opacity-90 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
             >
-              Upload Your First Statement
+              Upload your first statement
             </button>
           </div>
         </div>
 
         {/* MODAL */}
         {showModal && (
-          <div 
-            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4"
+          <div
+            className="fixed inset-0 bg-ink/50 flex items-center justify-center p-4"
             style={{ zIndex: 9999, position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}
           >
-            <div 
-              className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6"
+            <div
+              className="bg-surface rounded-md w-full max-w-md p-5"
               onClick={(e) => e.stopPropagation()}
             >
-              <h3 className="text-xl sm:text-2xl font-bold text-gray-900 mb-4">Select Statement Type</h3>
-              <p className="text-sm text-gray-600 mb-6">What type of statement are you uploading?</p>
-              
-              <div className="space-y-3 mb-6">
+              <h3 className="text-lg font-semibold text-ink mb-1">Select statement type</h3>
+              <p className="text-sm text-ink-muted mb-4">What type of statement are you uploading?</p>
+
+              <div className="space-y-2 mb-5">
                 {[
-                  { value: 'bank', icon: '🏦', title: 'Bank Account', subtitle: 'Chequing or Savings' },
-                  { value: 'credit', icon: '💳', title: 'Credit Card', subtitle: 'Amex, Visa, Mastercard' }
-                ].map(({ value, icon, title, subtitle }) => (
+                  { value: 'bank', title: 'Bank account', subtitle: 'Chequing or savings' },
+                  { value: 'credit', title: 'Credit card', subtitle: 'Amex, Visa, Mastercard' }
+                ].map(({ value, title, subtitle }) => (
                   <label
                     key={value}
-                    className={`flex items-center gap-3 p-4 border-2 rounded-xl cursor-pointer hover:bg-gray-50 transition ${
-                      accountType === value ? 'border-blue-600 bg-blue-50' : 'border-gray-200'
+                    className={`flex items-center gap-3 p-3 border rounded-md cursor-pointer transition ${
+                      accountType === value ? 'border-accent bg-paper' : 'border-line hover:bg-paper'
                     }`}
                   >
                     <input
@@ -309,35 +310,35 @@ export default function CSVUploader() {
                       value={value}
                       checked={accountType === value}
                       onChange={(e) => setAccountType(e.target.value as 'bank' | 'credit')}
-                      className="w-5 h-5"
+                      className="w-4 h-4 accent-accent"
                     />
                     <div className="flex-1">
-                      <span className="text-lg font-semibold text-gray-900">{icon} {title}</span>
-                      <p className="text-sm text-gray-500">{subtitle}</p>
+                      <span className="text-sm font-semibold text-ink">{title}</span>
+                      <p className="text-xs text-ink-muted">{subtitle}</p>
                     </div>
                   </label>
                 ))}
               </div>
 
-              <div className="flex gap-3">
+              <div className="flex gap-2">
                 <button
                   onClick={() => setShowModal(false)}
-                  className="flex-1 px-6 py-3 border-2 border-gray-300 text-gray-700 font-semibold rounded-xl hover:bg-gray-50"
+                  className="flex-1 px-4 py-2 border border-line text-ink-muted font-medium text-sm rounded-md hover:bg-paper focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                 >
                   Cancel
                 </button>
                 <label className="flex-1">
-                  <div className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold rounded-xl hover:shadow-lg transition text-center cursor-pointer">
+                  <div className="px-4 py-2 bg-accent text-surface font-medium text-sm rounded-md hover:opacity-90 transition text-center cursor-pointer">
                     Continue
                   </div>
-                  <input 
-                    type="file" 
-                    accept=".csv,.xlsx,.xls" 
-                    onChange={(e) => { 
-                      setShowModal(false); 
-                      handleFileUpload(e); 
-                    }} 
-                    className="hidden" 
+                  <input
+                    type="file"
+                    accept=".csv,.xlsx,.xls"
+                    onChange={(e) => {
+                      setShowModal(false);
+                      handleFileUpload(e);
+                    }}
+                    className="hidden"
                   />
                 </label>
               </div>
@@ -349,30 +350,30 @@ export default function CSVUploader() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-      <div className="max-w-[1600px] mx-auto px-4 sm:px-6 py-6 sm:py-8">
-        
+    <div>
+      <div className="max-w-400 mx-auto px-4 sm:px-6 py-5 sm:py-6">
+
         {/* HEADER */}
-        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6 sm:mb-8">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-5">
           <div>
-            <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-1">Dashboard</h1>
-            <p className="text-gray-600 text-sm sm:text-base">Manage and analyze your transactions</p>
+            <h1 className="text-xl sm:text-2xl font-bold text-ink">Dashboard</h1>
+            <p className="text-ink-muted text-sm">Manage and analyze your transactions</p>
           </div>
-          <div className="flex flex-col sm:flex-row gap-3">
+          <div className="flex flex-col sm:flex-row gap-2">
             <button
               onClick={() => setShowModal(true)}
-              className="bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold py-3 px-6 rounded-xl shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2"
+              className="bg-accent text-surface font-semibold text-sm py-2 px-4 rounded-md hover:opacity-90 transition flex items-center justify-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
               </svg>
               Upload
             </button>
             <button
               onClick={handleExportCSV}
-              className="bg-white border-2 border-gray-300 text-gray-700 font-semibold py-3 px-6 rounded-xl hover:border-gray-400 transition-all flex items-center justify-center gap-2"
+              className="bg-surface border border-line text-ink font-semibold text-sm py-2 px-4 rounded-md hover:bg-paper transition flex items-center justify-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
               </svg>
               Export
@@ -382,49 +383,49 @@ export default function CSVUploader() {
         </div>
 
         {/* DASHBOARD CARDS */}
-        <div className="mb-6 sm:mb-8">
+        <div className="mb-4">
           <DashboardCards transactions={filteredTransactions} />
         </div>
 
         {/* 2-COLUMN LAYOUT */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
-          
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
           {/* TRANSACTIONS */}
-          <div className="lg:col-span-2 space-y-6">
-            
+          <div className="lg:col-span-2 space-y-4">
+
             {/* FILTER */}
-            <div className="bg-white rounded-2xl shadow-md p-4 sm:p-6">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <label className="text-sm font-semibold text-gray-700">Filter by Category:</label>
+            <div className="bg-surface border border-line rounded-md p-3">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <label className="text-xs font-medium uppercase tracking-wide text-ink-muted">Filter by category</label>
                 <select
                   value={categoryFilter}
                   onChange={(e) => setCategoryFilter(e.target.value)}
-                  className="border border-gray-300 rounded-lg px-4 py-2 text-sm w-full sm:w-auto"
+                  className="border border-line rounded-md px-3 py-1.5 text-sm bg-surface text-ink w-full sm:w-auto focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                 >
-                  <option value="All">All Categories</option>
+                  <option value="All">All categories</option>
                   {CATEGORY_OPTIONS.map(cat => <option key={cat} value={cat}>{cat}</option>)}
                 </select>
               </div>
             </div>
 
             {/* TABLE */}
-            <div className="bg-white rounded-2xl shadow-md overflow-hidden">
-              <div className="p-4 sm:p-6 border-b border-gray-200">
-                <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Recent Transactions</h2>
-                <p className="text-gray-600 text-sm mt-1">
+            <div className="bg-surface border border-line rounded-md overflow-hidden">
+              <div className="p-3 sm:p-4 border-b border-line">
+                <h2 className="text-base font-semibold text-ink">Recent transactions</h2>
+                <p className="text-ink-muted text-xs mt-0.5">
                   Showing {Math.min(visibleCount, filteredTransactions.length)} of {filteredTransactions.length}
                 </p>
               </div>
-              
+
              {/* DESKTOP TABLE */}
 <div className="hidden md:block overflow-x-auto">
   <table className="w-full">
     <thead>
-      <tr className="border-b-2 border-gray-200">
-        <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase w-[110px]">Date</th>
-        <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Description</th>
-        <th className="px-3 py-3 text-right text-xs font-semibold text-gray-600 uppercase w-[100px]">Amount</th>
-        <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase w-[140px]">Category</th>
+      <tr className="border-b border-line">
+        <th className="px-3 py-2 text-left text-[11px] font-medium uppercase tracking-wide text-ink-muted w-27.5">Date</th>
+        <th className="px-3 py-2 text-left text-[11px] font-medium uppercase tracking-wide text-ink-muted">Description</th>
+        <th className="px-3 py-2 text-right text-[11px] font-medium uppercase tracking-wide text-ink-muted w-32.5">Amount</th>
+        <th className="px-3 py-2 text-left text-[11px] font-medium uppercase tracking-wide text-ink-muted w-35">Category</th>
       </tr>
     </thead>
     <tbody>
@@ -437,6 +438,7 @@ export default function CSVUploader() {
           onCategoryChange={updateCategory}
           badges={{
             isUnusual: isUnusual(row.Amount, row.Category, row.Description, expenseThreshold),
+            threshold: expenseThreshold[row.Category] ?? null,
             isDuplicate: isDuplicate(row.Description, row.Amount, row.Date, transactions, idx),
             frequencyWarning: getSubscriptionFrequency(row.Description, row.Amount, row.Date, transactions),
           }}
@@ -447,7 +449,7 @@ export default function CSVUploader() {
 </div>
 
 {/* MOBILE CARDS */}
-<div className="md:hidden p-4 space-y-4">
+<div className="md:hidden p-3 space-y-2">
   {filteredTransactions.slice(0, visibleCount).map((row, idx) => (
     <MobileTransactionCard
       key={idx}
@@ -457,6 +459,7 @@ export default function CSVUploader() {
       onCategoryChange={updateCategory}
       badges={{
         isUnusual: isUnusual(row.Amount, row.Category, row.Description, expenseThreshold),
+        threshold: expenseThreshold[row.Category] ?? null,
         isDuplicate: isDuplicate(row.Description, row.Amount, row.Date, transactions, idx),
         frequencyWarning: getSubscriptionFrequency(row.Description, row.Amount, row.Date, transactions),
       }}
@@ -466,15 +469,15 @@ export default function CSVUploader() {
 
               {/* SHOW MORE */}
               {transactions.length > 15 && (
-                <div className="p-4 sm:p-6 border-t border-gray-200 flex justify-center gap-4">
+                <div className="p-3 border-t border-line flex justify-center gap-3">
                   {visibleCount < filteredTransactions.length && (
-                    <button onClick={() => setVisibleCount(prev => prev + 15)} className="bg-blue-600 text-white font-semibold px-6 py-2.5 rounded-lg">
-                      Show More
+                    <button onClick={() => setVisibleCount(prev => prev + 15)} className="bg-accent text-surface font-medium text-sm px-4 py-1.5 rounded-md hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent">
+                      Show more
                     </button>
                   )}
                   {visibleCount > 15 && (
-                    <button onClick={() => setVisibleCount(15)} className="bg-gray-200 text-gray-800 font-semibold px-6 py-2.5 rounded-lg">
-                      Show Less
+                    <button onClick={() => setVisibleCount(15)} className="bg-surface border border-line text-ink-muted font-medium text-sm px-4 py-1.5 rounded-md hover:bg-paper focus:outline-none focus-visible:ring-2 focus-visible:ring-accent">
+                      Show less
                     </button>
                   )}
                 </div>
@@ -483,18 +486,18 @@ export default function CSVUploader() {
           </div>
 
           {/* CHARTS & INSIGHTS */}
-          <div className="space-y-6">
-            
+          <div className="space-y-4">
+
             {/* PIE CHART */}
-            <div className="bg-white rounded-2xl shadow-md p-6">
-              <h3 className="text-xl font-bold text-gray-900 mb-4">Spending by Category</h3>
-              <div className="h-[280px] sm:h-[320px]">
+            <div className="bg-surface border border-line rounded-md p-4">
+              <h3 className="text-base font-semibold text-ink mb-3">Spending by category</h3>
+              <div className="h-65 sm:h-75">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
-                    <Pie data={categoryData} cx="50%" cy="50%" outerRadius={80} dataKey="value" label={false}>
-                      {categoryData.map((_, index) => <Cell key={index} fill={COLORS[index % COLORS.length]} />)}
+                    <Pie data={categoryData} cx="50%" cy="50%" outerRadius={78} dataKey="value" label={false}>
+                      {categoryData.map((entry, index) => <Cell key={index} fill={categoryColor(entry.name)} stroke="var(--color-surface)" strokeWidth={1} />)}
                     </Pie>
-                    <Tooltip />
+                    <Tooltip formatter={(value: number) => formatCurrency(value)} />
                     <Legend verticalAlign="bottom" height={36} wrapperStyle={{ fontSize: '11px' }} />
                   </PieChart>
                 </ResponsiveContainer>
@@ -507,49 +510,49 @@ export default function CSVUploader() {
         </div>
 
         {/* BAR CHART */}
-        <div className="mt-6 lg:mt-8 bg-white rounded-2xl shadow-md p-4 sm:p-6">
-          <h3 className="text-xl font-bold text-gray-900 mb-4">Daily Income & Expenses</h3>
-          <div className="h-[250px] sm:h-[350px]">
+        <div className="mt-4 bg-surface border border-line rounded-md p-4">
+          <h3 className="text-base font-semibold text-ink mb-3">Daily income &amp; expenses</h3>
+          <div className="h-57.5 sm:h-80">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={dailyData} margin={{ top: 20, right: 10, left: 0, bottom: 40 }}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="ShortDate" angle={-25} textAnchor="end" interval={0} tick={{ fontSize: 10 }} />
-                <YAxis tick={{ fontSize: 10 }} />
-                <Tooltip />
-                <Bar dataKey="Income" fill="#4ade80" radius={[4, 4, 0, 0]} barSize={20} />
-                <Bar dataKey="Expense" fill="#f97316" radius={[4, 4, 0, 0]} barSize={20} />
+              <BarChart data={dailyData} margin={{ top: 10, right: 10, left: 0, bottom: 30 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-line)" vertical={false} />
+                <XAxis dataKey="ShortDate" angle={-25} textAnchor="end" interval={0} tick={{ fontSize: 10, fill: 'var(--color-ink-muted)' }} axisLine={{ stroke: 'var(--color-line)' }} tickLine={false} />
+                <YAxis tick={{ fontSize: 10, fill: 'var(--color-ink-muted)' }} axisLine={false} tickLine={false} />
+                <Tooltip formatter={(value: number) => formatCurrency(value)} />
+                <Bar dataKey="Income" fill="var(--color-positive)" radius={[2, 2, 0, 0]} barSize={18} />
+                <Bar dataKey="Expense" fill="var(--color-negative)" radius={[2, 2, 0, 0]} barSize={18} />
               </BarChart>
             </ResponsiveContainer>
           </div>
         </div>
 
-        <div className="mt-6 lg:mt-8">
+        <div className="mt-4">
           <InsightsAssistant transactions={transactions} />
         </div>
       </div>
 
       {/* MODAL */}
       {showModal && (
-        <div 
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4"
+        <div
+          className="fixed inset-0 bg-ink/50 flex items-center justify-center p-4"
           style={{ zIndex: 9999, position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}
         >
-          <div 
-            className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6"
+          <div
+            className="bg-surface rounded-md w-full max-w-md p-5"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-xl sm:text-2xl font-bold text-gray-900 mb-4">Select Statement Type</h3>
-            <p className="text-sm text-gray-600 mb-6">What type of statement are you uploading?</p>
-            
-            <div className="space-y-3 mb-6">
+            <h3 className="text-lg font-semibold text-ink mb-1">Select statement type</h3>
+            <p className="text-sm text-ink-muted mb-4">What type of statement are you uploading?</p>
+
+            <div className="space-y-2 mb-5">
               {[
-                { value: 'bank', icon: '🏦', title: 'Bank Account', subtitle: 'Chequing or Savings' },
-                { value: 'credit', icon: '💳', title: 'Credit Card', subtitle: 'Amex, Visa, Mastercard' }
-              ].map(({ value, icon, title, subtitle }) => (
+                { value: 'bank', title: 'Bank account', subtitle: 'Chequing or savings' },
+                { value: 'credit', title: 'Credit card', subtitle: 'Amex, Visa, Mastercard' }
+              ].map(({ value, title, subtitle }) => (
                 <label
                   key={value}
-                  className={`flex items-center gap-3 p-4 border-2 rounded-xl cursor-pointer hover:bg-gray-50 transition ${
-                    accountType === value ? 'border-blue-600 bg-blue-50' : 'border-gray-200'
+                  className={`flex items-center gap-3 p-3 border rounded-md cursor-pointer transition ${
+                    accountType === value ? 'border-accent bg-paper' : 'border-line hover:bg-paper'
                   }`}
                 >
                   <input
@@ -558,35 +561,35 @@ export default function CSVUploader() {
                     value={value}
                     checked={accountType === value}
                     onChange={(e) => setAccountType(e.target.value as 'bank' | 'credit')}
-                    className="w-5 h-5"
+                    className="w-4 h-4 accent-accent"
                   />
                   <div className="flex-1">
-                    <span className="text-lg font-semibold text-gray-900">{icon} {title}</span>
-                    <p className="text-sm text-gray-500">{subtitle}</p>
+                    <span className="text-sm font-semibold text-ink">{title}</span>
+                    <p className="text-xs text-ink-muted">{subtitle}</p>
                   </div>
                 </label>
               ))}
             </div>
 
-            <div className="flex gap-3">
+            <div className="flex gap-2">
               <button
                 onClick={() => setShowModal(false)}
-                className="flex-1 px-6 py-3 border-2 border-gray-300 text-gray-700 font-semibold rounded-xl hover:bg-gray-50"
+                className="flex-1 px-4 py-2 border border-line text-ink-muted font-medium text-sm rounded-md hover:bg-paper focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
               >
                 Cancel
               </button>
               <label className="flex-1">
-                <div className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold rounded-xl hover:shadow-lg transition text-center cursor-pointer">
+                <div className="px-4 py-2 bg-accent text-surface font-medium text-sm rounded-md hover:opacity-90 transition text-center cursor-pointer">
                   Continue
                 </div>
-                <input 
-                  type="file" 
-                  accept=".csv,.xlsx,.xls" 
-                  onChange={(e) => { 
-                    setShowModal(false); 
-                    handleFileUpload(e); 
-                  }} 
-                  className="hidden" 
+                <input
+                  type="file"
+                  accept=".csv,.xlsx,.xls"
+                  onChange={(e) => {
+                    setShowModal(false);
+                    handleFileUpload(e);
+                  }}
+                  className="hidden"
                 />
               </label>
             </div>

@@ -1,1 +1,27 @@
 @import "tailwindcss";
+
+@theme {
+  /* Geist fonts were already loaded via next/font in layout.tsx but never
+     wired into Tailwind's font-sans/font-mono utilities - this connects
+     them. */
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* Core neutrals - everything on the page that isn't a category color or
+     a status state (positive/negative/warning) uses one of these. */
+  --color-paper: #f3f4f2;
+  --color-surface: #ffffff;
+  --color-ink: #14181a;
+  --color-ink-muted: #5b6266;
+  --color-line: #e1e4e2;
+
+  /* The one non-neutral, non-semantic accent - interactive elements and
+     the recurring-detection signature treatment only. */
+  --color-accent: #35525c;
+
+  /* Status states - income/expense sign, budget thresholds, anomaly
+     severity. Reserved chroma, not used decoratively elsewhere. */
+  --color-positive: #1f7a5c;
+  --color-negative: #b23a34;
+  --color-warning: #a8721e;
+}

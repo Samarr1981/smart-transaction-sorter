@@ -24,28 +24,28 @@ export default function InsightsAssistant({ transactions }: { transactions: any[
   }
 
   return (
-    <div className="mt-12 bg-white rounded-lg p-6 shadow-md">
-      <h2 className="text-xl font-semibold mb-2">🧠 Ask GPT for Financial Insights</h2>
-      <form onSubmit={handleSubmit} className="flex flex-col space-y-4">
+    <div className="bg-surface border border-line rounded-md p-4">
+      <h2 className="text-base font-semibold text-ink mb-3">Ask a question about your spending</h2>
+      <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-2">
         <input
           type="text"
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
-          placeholder="e.g., Where did I spend the most?"
-          className="border border-gray-300 p-2 rounded"
+          placeholder="e.g. Where did I spend the most?"
+          className="flex-1 border border-line bg-paper text-ink text-sm p-2.5 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
           required
         />
         <button
           type="submit"
-          className="self-start bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+          className="bg-accent text-surface font-semibold text-sm px-4 py-2.5 rounded-md hover:opacity-90 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
         >
-          Ask GPT
+          Ask
         </button>
       </form>
-      {loading && <p className="mt-4 text-sm text-gray-500">Analyzing...</p>}
+      {loading && <p className="mt-3 text-xs text-ink-muted">Analyzing…</p>}
       {answer && (
-        <div className="mt-4 bg-gray-50 border border-gray-200 p-4 rounded">
-          <p className="text-gray-800 whitespace-pre-line">{answer}</p>
+        <div className="mt-3 bg-paper border border-line p-3 rounded-md">
+          <p className="text-sm text-ink whitespace-pre-line">{answer}</p>
         </div>
       )}
     </div>

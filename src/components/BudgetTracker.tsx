@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
+import { formatCurrency, AMOUNT_CLASS } from '@/lib/currency';
 
 type Transaction = {
   Date: string;
@@ -91,55 +92,52 @@ export default function BudgetTracker({ transactions }: BudgetTrackerProps) {
   if (allCategories.length === 0) return null;
 
   return (
-    <div className="bg-gradient-to-r from-green-50 to-teal-50 border-2 border-green-200 rounded-xl p-6 shadow-lg">
-      <div className="flex items-center gap-3 mb-6">
-        <span className="text-3xl">💰</span>
-        <div>
-          <h3 className="text-2xl font-bold text-green-900">Budget Tracker</h3>
-          <p className="text-sm text-green-600">Set spending limits per category</p>
-        </div>
+    <div className="bg-surface border border-line rounded-md p-4">
+      <div className="mb-3">
+        <h3 className="text-base font-semibold text-ink">Budget Tracker</h3>
+        <p className="text-xs text-ink-muted">Set spending limits per category</p>
       </div>
 
-      <div className="space-y-4">
+      <div className="space-y-2">
         {allCategories.map((category) => {
           const spent = categorySpending[category] || 0;
           const budget = budgets[category] || 0;
           const percentage = budget > 0 ? (spent / budget) * 100 : 0;
           const isOverBudget = spent > budget && budget > 0;
           const isNearLimit = percentage >= 90 && percentage < 100;
+          const barTone = isOverBudget ? 'bg-negative' : isNearLimit ? 'bg-warning' : 'bg-positive';
 
           return (
-            <div key={category} className="bg-white rounded-lg p-4 shadow">
-              <div className="flex justify-between items-start mb-2">
-                <div className="flex-1">
-                  <h4 className="font-semibold text-gray-800">{category}</h4>
-                  <p className="text-sm text-gray-500">
-                    Spent: ${spent.toFixed(2)}
-                    {budget > 0 && ` / $${budget.toFixed(2)}`}
+            <div key={category} className="bg-paper border border-line rounded-md p-3">
+              <div className="flex justify-between items-start gap-3 mb-2">
+                <div className="min-w-0">
+                  <h4 className="text-sm font-semibold text-ink truncate">{category}</h4>
+                  <p className={`text-xs text-ink-muted ${AMOUNT_CLASS}`}>
+                    {formatCurrency(spent)}
+                    {budget > 0 && <span> / {formatCurrency(budget)}</span>}
                   </p>
                 </div>
 
-                <div className="text-right">
+                <div className="text-right shrink-0">
                   {editingCategory === category ? (
-                    <div className="flex gap-2 items-center">
-                      <span className="text-sm">$</span>
+                    <div className="flex gap-1.5 items-center">
                       <input
                         type="number"
                         value={editAmount}
                         onChange={(e) => setEditAmount(e.target.value)}
-                        className="w-24 border rounded px-2 py-1 text-sm"
-                        placeholder="Budget"
+                        className={`w-20 bg-surface border border-line rounded-md px-2 py-1 text-xs ${AMOUNT_CLASS} focus:outline-none focus-visible:ring-2 focus-visible:ring-accent`}
+                        placeholder="0.00"
                         autoFocus
                       />
                       <button
                         onClick={() => handleSave(category)}
-                        className="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700"
+                        className="bg-accent text-surface px-2.5 py-1 rounded-md text-xs font-medium hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                       >
                         Save
                       </button>
                       <button
                         onClick={() => setEditingCategory(null)}
-                        className="bg-gray-300 text-gray-700 px-3 py-1 rounded text-sm hover:bg-gray-400"
+                        className="bg-surface border border-line text-ink-muted px-2.5 py-1 rounded-md text-xs font-medium hover:bg-line focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                       >
                         Cancel
                       </button>
@@ -147,9 +145,9 @@ export default function BudgetTracker({ transactions }: BudgetTrackerProps) {
                   ) : (
                     <button
                       onClick={() => startEditing(category)}
-                      className="text-blue-600 text-sm hover:underline"
+                      className="text-accent text-xs font-medium hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded-md"
                     >
-                      {budget > 0 ? "Edit Budget" : "Set Budget"}
+                      {budget > 0 ? 'Edit budget' : 'Set budget'}
                     </button>
                   )}
                 </div>
@@ -157,38 +155,26 @@ export default function BudgetTracker({ transactions }: BudgetTrackerProps) {
 
               {budget > 0 && (
                 <>
-                  {/* Progress Bar */}
-                  <div className="w-full bg-gray-200 rounded-full h-3 mb-2 overflow-hidden">
+                  <div className="w-full bg-line rounded-md h-1.5 mb-1.5 overflow-hidden">
                     <div
-                      className={`h-3 rounded-full transition-all ${
-                        isOverBudget
-                          ? "bg-red-600"
-                          : isNearLimit
-                          ? "bg-yellow-500"
-                          : "bg-green-500"
-                      }`}
+                      className={`h-1.5 rounded-md transition-all ${barTone}`}
                       style={{ width: `${Math.min(percentage, 100)}%` }}
                     />
                   </div>
 
-                  {/* Status */}
-                  <div className="flex justify-between items-center text-xs">
-                    <span className="text-gray-600">
-                      {percentage.toFixed(0)}% used
-                    </span>
+                  <div className="flex justify-between items-center text-[11px]">
+                    <span className="text-ink-muted">{percentage.toFixed(0)}% used</span>
                     {isOverBudget && (
-                      <span className="text-red-600 font-semibold">
-                        ⚠️ Over budget by ${(spent - budget).toFixed(2)}
+                      <span className={`text-negative font-medium ${AMOUNT_CLASS}`}>
+                        Over by {formatCurrency(spent - budget)}
                       </span>
                     )}
                     {isNearLimit && !isOverBudget && (
-                      <span className="text-yellow-600 font-semibold">
-                        ⚠️ Approaching limit
-                      </span>
+                      <span className="text-warning font-medium">Approaching limit</span>
                     )}
                     {!isOverBudget && !isNearLimit && percentage > 0 && (
-                      <span className="text-green-600">
-                        ${(budget - spent).toFixed(2)} remaining
+                      <span className={`text-ink-muted ${AMOUNT_CLASS}`}>
+                        {formatCurrency(budget - spent)} remaining
                       </span>
                     )}
                   </div>
@@ -199,10 +185,10 @@ export default function BudgetTracker({ transactions }: BudgetTrackerProps) {
         })}
       </div>
 
-      <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-        <p className="text-sm text-blue-800">
-          💡 <strong>Tip:</strong> Click "Set Budget" to add spending limits for each category.
-          Get alerts when you're approaching or exceeding your budget.
+      <div className="mt-3 pt-3 border-t border-line">
+        <p className="text-xs text-ink-muted">
+          <span className="font-medium text-ink">Tip —</span> set a budget on any category to get
+          over-limit warnings here.
         </p>
       </div>
     </div>
