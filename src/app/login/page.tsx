@@ -71,8 +71,8 @@ export default function Login() {
                 <span className="text-2xl">🔒</span>
               </div>
               <div>
-                <h3 className="font-semibold text-lg mb-1">Bank-Level Security</h3>
-                <p className="text-purple-100">Your data is encrypted and isolated per user</p>
+                <h3 className="font-semibold text-lg mb-1">Secure Authentication</h3>
+                <p className="text-purple-100">Passwords hashed with bcrypt, sessions secured with httpOnly JWT cookies</p>
               </div>
             </div>
             

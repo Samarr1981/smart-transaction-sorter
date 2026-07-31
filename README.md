@@ -10,7 +10,7 @@ AI-powered web application that analyzes bank transaction data, automatically ca
 
 - 🔐 Secure user authentication with JWT
 - 📊 CSV or Excel file upload and processing with intelligent header detection
-- 🤖 AI-powered transaction categorization using OpenAI GPT-4
+- 🤖 AI-powered transaction categorization using OpenAI gpt-3.5-turbo
 - ⚠️ Anomaly detection for unusual spending patterns
 - 📈 Interactive analytics dashboard with visualizations
 - 💡 AI insights assistant for personalized spending recommendations
@@ -23,7 +23,7 @@ AI-powered web application that analyzes bank transaction data, automatically ca
 - **Frontend:** Next.js 14, React, TypeScript, Tailwind CSS, Recharts
 - **Backend:** Next.js API Routes, Node.js
 - **Database:** MongoDB with Mongoose ODM
-- **AI:** OpenAI GPT-4 API
+- **AI:** OpenAI gpt-3.5-turbo API
 - **Authentication:** JWT with bcrypt password hashing
 - **Deployment:** Vercel
 - **File Processing:** CSV parsing with intelligent column mapping
@@ -48,7 +48,7 @@ AI-powered web application that analyzes bank transaction data, automatically ca
 ## 🎯 Key Highlights
 
 - **Intelligent CSV Processing:** Automatically detects and maps various CSV formats from different banks
-- **Real-time AI Categorization:** Uses GPT-4 to intelligently categorize transactions into 12+ categories
+- **Real-time AI Categorization:** Uses gpt-3.5-turbo to intelligently categorize transactions into 12+ categories
 - **Visual Analytics:** 
   - Spending breakdown by category with pie charts
   - Daily income/expense tracking with bar charts

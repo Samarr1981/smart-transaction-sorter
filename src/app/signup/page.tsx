@@ -100,7 +100,7 @@ export default function RegisterPage() {
               </div>
               <div>
                 <h3 className="font-semibold text-lg mb-1">Private & Secure</h3>
-                <p className="text-purple-100">Your data is encrypted and never shared</p>
+                <p className="text-purple-100">Passwords hashed with bcrypt, sessions secured with httpOnly JWT cookies</p>
               </div>
             </div>
           </div>
